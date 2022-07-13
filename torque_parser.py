@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from os import listdir
 import re
 import time
-from numpy import true_divide
+from numpy import array_equal, true_divide
 import mysql.connector
 
 # where the report (account) files are at
@@ -113,9 +113,12 @@ def process_file(file_name):
 
         # create an instance of the Job class
         job = Job()
-    
-        # set job id of this object
-        job.job_id = re.findall(";[0-9]+", array[0])[0].strip(';')
+
+        try:
+            # set job id of this object
+            job.job_id = re.findall(";[0-9]+", array[0])[0].strip(';')
+        except:
+            continue
 
         # items to be extracted: submit time, job_id, queue
         if log_status == 'Q':
@@ -132,140 +135,167 @@ def process_file(file_name):
         # items to be extracted: requestor (user), job_name, created, start datetime, exec_host, neednodes,\
         # gpu_requested, gpu, mem_requested, mem_usage nodes
         elif log_status == 'S':
-            # this is for when we have a job ID that does not start with Q status
-            new_job_flag = False
-            # if memory has been specified
-            has_mem = False
-            if not search_job_id(job.job_id):
-                job.queue_name = array[3][array[3].find('=')+1:]
-                new_job_flag = True
-        
-            job.status = 'S'
-            job.requestor = array[0][array[0].find('=')+1:]
-            job.job_name = array[2][array[2].find('=')+1:]
-
-            # extract the creat timetamp
-            c_timestamp = array[4][array[4].find('=')+1:]
-            c_datetime = ts2dt(c_timestamp)
-            job.created = str(c_datetime.date()) + '\n' + str(c_datetime.time())
-
-            # extract start timestamp
-            s_timestamp = array[7][array[7].find('=')+1:]
-            s_datetime = ts2dt(s_timestamp)
-            job.started = str(s_datetime.date()) + '\n' + str(s_datetime.time())
-            
-            # extract exec_host
-            job.exec_host = (array[9][:array[9].find('/')])[array[9].find('=')+1:]
-
-            # some log files have a length of 14 and some 15. They should be separated
-            if 'neednodes' in array[10]:
-                # extract number of nodes needed
-                job.need_nodes = array[10][array[10].find('=')+1:array[10].find(':')]
-                if 'gpus' in array[10]:
-                    # extract number of gpus requested
-                    job.gpu_requested = array[10][array[10].find('gpus')+5:]
-                    try:
-                        job.gpu_used = array[12][array[12].find('gpus')+5:]
-                    except:
-                        pass
-                try:
-                    job.resource_nodes = array[12][array[12].find('=')+1:array[12].find(':')]
-                except:
-                    # in case no assigned node was found
-                    pass
-        
-            if 'mem' in array[10]:
-                has_mem = True
-                # extract theh amount of memory requestd (string now, could be improved)
-                job.mem_requested = array[10][array[10].find('=')+1:]
-                # extract number of nodes needed
-                job.need_nodes = array[11][array[11].find('=')+1:array[11].find(':')]
-                if 'gpus' in array[11]:
-                    # extract number of gpus requested
-                    job.gpu_requested = array[11][array[11].find('gpus')+5:]
-                    try:
-                        job.gpu_used = array[13][array[13].find('gpus')+5:]
-                    except:
-                        pass
-                try:
-                    job.resource_nodes = array[13][array[13].find('=')+1:array[13].find(':')]
-                except:
-                    # in case no assigned node was found
-                    pass
-            
-
-            if new_job_flag:
-                # add to list as a new job
-                update_database(job)
-                jobs_list.append(job)
+            if len(array) == 14 or len(array) == 15:
+                # this is for when we have a job ID that does not start with Q status
                 new_job_flag = False
-            else:
-                # update the previous job (with Q status)
-                previous_job = search_job(job.job_id)
-                previous_job.requestor = job.requestor
-                previous_job.job_name = job.job_name
-                previous_job.created = job.created
-                previous_job.started = job.started
-                previous_job.exec_host = job.exec_host
-                previous_job.need_nodes = job.need_nodes
-                previous_job.resource_nodes = job.resource_nodes
-                previous_job.gpu_requested = job.gpu_requested
-                previous_job.gpu_used = job.gpu_used
-                previous_job.gpu_used = job.gpu_used
-                previous_job.status = job.status
-                if has_mem:
-                    previous_job.mem_requested = job.mem_requested
-                    has_mem = False
-                update_database(previous_job)
+                # if memory has been specified
+                has_mem = False
+                if not search_job_id(job.job_id):
+                    job.queue_name = array[3][array[3].find('=')+1:]
+                    new_job_flag = True
+            
+                job.status = 'S'
+                job.requestor = array[0][array[0].find('=')+1:]
+                job.job_name = array[2][array[2].find('=')+1:]
+
+                # extract the creat timetamp
+                c_timestamp = array[4][array[4].find('=')+1:]
+                c_datetime = ts2dt(c_timestamp)
+                job.created = str(c_datetime.date()) + '\n' + str(c_datetime.time())
+
+                # extract start timestamp
+                s_timestamp = array[7][array[7].find('=')+1:]
+                s_datetime = ts2dt(s_timestamp)
+                job.started = str(s_datetime.date()) + '\n' + str(s_datetime.time())
+                
+                # extract exec_host
+                job.exec_host = (array[9][:array[9].find('/')])[array[9].find('=')+1:]
+
+                # some log files have a length of 14 and some 15. They should be separated
+                if 'neednodes' in array[10]:
+                    # extract number of nodes needed
+                    job.need_nodes = array[10][array[10].find('=')+1:array[10].find(':')]
+                    if 'gpus' in array[10]:
+                        # extract number of gpus requested
+                        job.gpu_requested = array[10][array[10].find('gpus')+5:]
+                        try:
+                            job.gpu_used = array[12][array[12].find('gpus')+5:]
+                        except:
+                            pass
+                    try:
+                        job.resource_nodes = array[12][array[12].find('=')+1:array[12].find(':')]
+                    except:
+                        # in case no assigned node was found
+                        pass
+            
+                if 'mem' in array[10]:
+                    has_mem = True
+                    # extract theh amount of memory requestd (string now, could be improved)
+                    job.mem_requested = array[10][array[10].find('=')+1:]
+                    # extract number of nodes needed
+                    job.need_nodes = array[11][array[11].find('=')+1:array[11].find(':')]
+                    if 'gpus' in array[11]:
+                        # extract number of gpus requested
+                        job.gpu_requested = array[11][array[11].find('gpus')+5:]
+                        try:
+                            job.gpu_used = array[13][array[13].find('gpus')+5:]
+                        except:
+                            pass
+                    try:
+                        job.resource_nodes = array[13][array[13].find('=')+1:array[13].find(':')]
+                    except:
+                        # in case no assigned node was found
+                        pass
+                
+
+                if new_job_flag:
+                    # add to list as a new job
+                    update_database(job)
+                    jobs_list.append(job)
+                    new_job_flag = False
+                else:
+                    # update the previous job (with Q status)
+                    previous_job = search_job(job.job_id)
+                    previous_job.requestor = job.requestor
+                    previous_job.job_name = job.job_name
+                    previous_job.created = job.created
+                    previous_job.started = job.started
+                    previous_job.exec_host = job.exec_host
+                    previous_job.need_nodes = job.need_nodes
+                    previous_job.resource_nodes = job.resource_nodes
+                    previous_job.gpu_requested = job.gpu_requested
+                    previous_job.gpu_used = job.gpu_used
+                    previous_job.gpu_used = job.gpu_used
+                    previous_job.status = job.status
+                    if has_mem:
+                        previous_job.mem_requested = job.mem_requested
+                        has_mem = False
+                    update_database(previous_job)
 
         # items to be extracted: session, end (finished) time, cpu time (cpu_usage), used mem, used vmem   
         elif log_status == 'E':
-            # this is for when we have a job ID that does not start with Q status
-            new_job_flag = False
-            if not search_job_id(job.job_id):
-                job.requestor = array[0][array[0].find('=')+1:]
-                job.queue_name = array[3][array[3].find('=')+1:]
-                new_job_flag = True
-
-            job.status = 'E'
-
-            if 'session' in array[13]:
-                job.session = array[13][array[13].find('=')+1:]
-                #extract end timestamp
-                e_timestamp = array[14][array[14].find('=')+1:]
-                e_datetime = ts2dt(e_timestamp)
-                job.finished = str(e_datetime.date()) + '\n' + str(e_datetime.time())
-                job.cpu_usage = array[16][array[16].find('=')+1:]
-                job.mem_usage = array[17][array[17].find('=')+1:]
-                job.vmem_usage = array[18][array[18].find('=')+1:]
-            elif 'session' in array[14]:
-                job.session = array[14][array[14].find('=')+1:]
-                #extract end timestamp
-                e_timestamp = array[15][array[15].find('=')+1:]
-                e_datetime = ts2dt(e_timestamp)
-                job.finished = str(e_datetime.date()) + '\n' + str(e_datetime.time())
-                job.cpu_usage = array[17][array[17].find('=')+1:]
-                job.mem_usage = array[18][array[18].find('=')+1:]
-                job.vmem_usage = array[19][array[19].find('=')+1:]
-            
-            if new_job_flag:
-                # add to list as a new job
-                update_database(job)
-                jobs_list.append(job)
+            if len(array) == 20 or len(array) == 21:
+                # this is for when we have a job ID that does not start with Q status
                 new_job_flag = False
-            else:
-                previous_job = search_job(job.job_id)
-                previous_job.session = job.session
-                previous_job.finished = job.finished
-                previous_job.cpu_usage = job.cpu_usage
-                previous_job.mem_usage = job.mem_usage
-                previous_job.vmem_usage = job.vmem_usage
-                previous_job.vmem_usage = job.vmem_usage
-                previous_job.status = job.status
+                # if memory has been specified
+                has_mem = False
+                if not search_job_id(job.job_id):
+                    job.requestor = array[0][array[0].find('=')+1:]
+                    job.queue_name = array[3][array[3].find('=')+1:]
+                    new_job_flag = True
 
-                update_database(previous_job)
+                job.status = 'E'
+
+                try:
+                    if 'session' in array[13]:
+                        job.session = array[13][array[13].find('=')+1:]
+                        #extract end timestamp
+                        e_timestamp = array[14][array[14].find('=')+1:]
+                        e_datetime = ts2dt(e_timestamp)
+                        job.finished = str(e_datetime.date()) + '\n' + str(e_datetime.time())
+                        job.cpu_usage = array[16][array[16].find('=')+1:]
+                        job.mem_usage = array[17][array[17].find('=')+1:]
+                        job.vmem_usage = array[18][array[18].find('=')+1:]
+                    elif 'session' in array[14]:
+                        job.session = array[14][array[14].find('=')+1:]
+                        #extract end timestamp
+                        e_timestamp = array[15][array[15].find('=')+1:]
+                        e_datetime = ts2dt(e_timestamp)
+                        job.finished = str(e_datetime.date()) + '\n' + str(e_datetime.time())
+                        job.cpu_usage = array[17][array[17].find('=')+1:]
+                        job.mem_usage = array[18][array[18].find('=')+1:]
+                        job.vmem_usage = array[19][array[19].find('=')+1:]
+                except:
+                    print(job.job_id)
                 
-
+                if 'mem' in array[10]:
+                    has_mem = True
+                    # extract theh amount of memory requestd (string now, could be improved)
+                    job.mem_requested = array[10][array[10].find('=')+1:]
+                    # extract number of nodes needed
+                    job.need_nodes = array[11][array[11].find('=')+1:array[11].find(':')]
+                    if 'gpus' in array[11]:
+                        # extract number of gpus requested
+                        job.gpu_requested = array[11][array[11].find('gpus')+5:]
+                        try:
+                            job.gpu_used = array[13][array[13].find('gpus')+5:]
+                        except:
+                            pass
+                    try:
+                        job.resource_nodes = array[13][array[13].find('=')+1:array[13].find(':')]
+                    except:
+                        # in case no assigned node was found
+                        pass
+                
+                if new_job_flag:
+                    # add to list as a new job
+                    update_database(job)
+                    jobs_list.append(job)
+                    new_job_flag = False
+                else:
+                    previous_job = search_job(job.job_id)
+                    previous_job.session = job.session
+                    previous_job.finished = job.finished
+                    previous_job.cpu_usage = job.cpu_usage
+                    previous_job.mem_usage = job.mem_usage
+                    previous_job.vmem_usage = job.vmem_usage
+                    previous_job.vmem_usage = job.vmem_usage
+                    previous_job.status = job.status
+                    if has_mem:
+                        previous_job.mem_requested = job.mem_requested
+                        has_mem = False
+                    update_database(previous_job)
+                
         line = file.readline()
 
 def process_most_recent_file(file_name): 
@@ -277,11 +307,205 @@ def process_most_recent_file(file_name):
     while True:
         line = file.readline()
         if not line:
-            print('sleeping')
             time.sleep(10)
             continue
-        print(line)
-        time.sleep(10)
+        else:
+            # strip newline chracters off of each line
+            line = line.strip('\n')
+            # split each line by space character (the first element is date and not needed)
+            array = line.split(' ')[1:]
+                # extract the log status from log file (Q, S, D, E)
+            log_status = re.findall(";.;", array[0])[0].strip(';')
+
+            # we have nothing to do with D status as it bears no additional useful info
+            if log_status == 'D':
+                continue
+
+            # create an instance of the Job class
+            job = Job()
+
+            try:
+                # set job id of this object
+                job.job_id = re.findall(";[0-9]+", array[0])[0].strip(';')
+            except:
+                print('Job ID Prolem: {0}'.format(array))
+
+            # items to be extracted: submit time, job_id, queue
+            if log_status == 'Q':
+                job.status = 'Q'
+                q_items = array[0].split(';')
+                # set submission time for this job (date + time)
+                job.submitted = str(file_date.date()) + '\n' + q_items[0]
+                # extract queue name
+                job.queue_name = q_items[3][q_items[3].find('=')+1:]
+                # add job to the list of visited objects (job ID's)
+                update_database(job)
+                jobs_list.append(job)
+
+            # items to be extracted: requestor (user), job_name, created, start datetime, exec_host, neednodes,\
+            # gpu_requested, gpu, mem_requested, mem_usage nodes
+            elif log_status == 'S':
+                if len(array) == 14 or len(array) == 15:
+                    # this is for when we have a job ID that does not start with Q status
+                    new_job_flag = False
+                    # if memory has been specified
+                    has_mem = False
+                    if not search_job_id(job.job_id):
+                        job.queue_name = array[3][array[3].find('=')+1:]
+                        new_job_flag = True
+                
+                    job.status = 'S'
+                    job.requestor = array[0][array[0].find('=')+1:]
+                    job.job_name = array[2][array[2].find('=')+1:]
+
+                    # extract the creat timetamp
+                    c_timestamp = array[4][array[4].find('=')+1:]
+                    c_datetime = ts2dt(c_timestamp)
+                    job.created = str(c_datetime.date()) + '\n' + str(c_datetime.time())
+
+                    # extract start timestamp
+                    s_timestamp = array[7][array[7].find('=')+1:]
+                    s_datetime = ts2dt(s_timestamp)
+                    job.started = str(s_datetime.date()) + '\n' + str(s_datetime.time())
+                    
+                    # extract exec_host
+                    job.exec_host = (array[9][:array[9].find('/')])[array[9].find('=')+1:]
+
+                    # some log files have a length of 14 and some 15. They should be separated
+                    if 'neednodes' in array[10]:
+                        # extract number of nodes needed
+                        job.need_nodes = array[10][array[10].find('=')+1:array[10].find(':')]
+                        if 'gpus' in array[10]:
+                            # extract number of gpus requested
+                            job.gpu_requested = array[10][array[10].find('gpus')+5:]
+                            try:
+                                job.gpu_used = array[12][array[12].find('gpus')+5:]
+                            except:
+                                pass
+                        try:
+                            job.resource_nodes = array[12][array[12].find('=')+1:array[12].find(':')]
+                        except:
+                            # in case no assigned node was found
+                            pass
+                
+                    if 'mem' in array[10]:
+                        has_mem = True
+                        # extract theh amount of memory requestd (string now, could be improved)
+                        job.mem_requested = array[10][array[10].find('=')+1:]
+                        # extract number of nodes needed
+                        job.need_nodes = array[11][array[11].find('=')+1:array[11].find(':')]
+                        if 'gpus' in array[11]:
+                            # extract number of gpus requested
+                            job.gpu_requested = array[11][array[11].find('gpus')+5:]
+                            try:
+                                job.gpu_used = array[13][array[13].find('gpus')+5:]
+                            except:
+                                pass
+                        try:
+                            job.resource_nodes = array[13][array[13].find('=')+1:array[13].find(':')]
+                        except:
+                            # in case no assigned node was found
+                            pass
+                    
+
+                    if new_job_flag:
+                        # add to list as a new job
+                        update_database(job)
+                        jobs_list.append(job)
+                        new_job_flag = False
+                    else:
+                        # update the previous job (with Q status)
+                        previous_job = search_job(job.job_id)
+                        previous_job.requestor = job.requestor
+                        previous_job.job_name = job.job_name
+                        previous_job.created = job.created
+                        previous_job.started = job.started
+                        previous_job.exec_host = job.exec_host
+                        previous_job.need_nodes = job.need_nodes
+                        previous_job.resource_nodes = job.resource_nodes
+                        previous_job.gpu_requested = job.gpu_requested
+                        previous_job.gpu_used = job.gpu_used
+                        previous_job.gpu_used = job.gpu_used
+                        previous_job.status = job.status
+                        if has_mem:
+                            previous_job.mem_requested = job.mem_requested
+                            has_mem = False
+                        update_database(previous_job)
+
+            # items to be extracted: session, end (finished) time, cpu time (cpu_usage), used mem, used vmem   
+            elif log_status == 'E':
+                if len(array) == 20 or len(array) == 21:
+                    # this is for when we have a job ID that does not start with Q status
+                    new_job_flag = False
+                    # if memory has been specified
+                    has_mem = False
+                    if not search_job_id(job.job_id):
+                        job.requestor = array[0][array[0].find('=')+1:]
+                        job.queue_name = array[3][array[3].find('=')+1:]
+                        new_job_flag = True
+
+                    job.status = 'E'
+
+                    try:
+                        if 'session' in array[13]:
+                            job.session = array[13][array[13].find('=')+1:]
+                            #extract end timestamp
+                            e_timestamp = array[14][array[14].find('=')+1:]
+                            e_datetime = ts2dt(e_timestamp)
+                            job.finished = str(e_datetime.date()) + '\n' + str(e_datetime.time())
+                            job.cpu_usage = array[16][array[16].find('=')+1:]
+                            job.mem_usage = array[17][array[17].find('=')+1:]
+                            job.vmem_usage = array[18][array[18].find('=')+1:]
+                        elif 'session' in array[14]:
+                            job.session = array[14][array[14].find('=')+1:]
+                            #extract end timestamp
+                            e_timestamp = array[15][array[15].find('=')+1:]
+                            e_datetime = ts2dt(e_timestamp)
+                            job.finished = str(e_datetime.date()) + '\n' + str(e_datetime.time())
+                            job.cpu_usage = array[17][array[17].find('=')+1:]
+                            job.mem_usage = array[18][array[18].find('=')+1:]
+                            job.vmem_usage = array[19][array[19].find('=')+1:]
+                    except:
+                        continue
+
+                    if 'mem' in array[10]:
+                        has_mem = True
+                        # extract theh amount of memory requestd (string now, could be improved)
+                        job.mem_requested = array[10][array[10].find('=')+1:]
+                        # extract number of nodes needed
+                        job.need_nodes = array[11][array[11].find('=')+1:array[11].find(':')]
+                        if 'gpus' in array[11]:
+                            # extract number of gpus requested
+                            job.gpu_requested = array[11][array[11].find('gpus')+5:]
+                            try:
+                                job.gpu_used = array[13][array[13].find('gpus')+5:]
+                            except:
+                                pass
+                        try:
+                            job.resource_nodes = array[13][array[13].find('=')+1:array[13].find(':')]
+                        except:
+                            # in case no assigned node was found
+                            pass
+                    
+                    if new_job_flag:
+                        # add to list as a new job
+                        update_database(job)
+                        jobs_list.append(job)
+                        new_job_flag = False
+                    else:
+                        previous_job = search_job(job.job_id)
+                        previous_job.session = job.session
+                        previous_job.finished = job.finished
+                        previous_job.cpu_usage = job.cpu_usage
+                        previous_job.mem_usage = job.mem_usage
+                        previous_job.vmem_usage = job.vmem_usage
+                        previous_job.vmem_usage = job.vmem_usage
+                        previous_job.status = job.status
+                        if has_mem:
+                            previous_job.mem_requested = job.mem_requested
+                            has_mem = False
+                        update_database(previous_job)
+        
 
 def search_job_id(id):
     for job in jobs_list:
@@ -327,7 +551,7 @@ def run():
                 new_reporting_files.sort()
                 reporting_files.append(last_file)
                 last_file = new_reporting_files.pop()
-    #process_most_recent_file(last_file)
+    process_most_recent_file(last_file)
 
 if __name__ == '__main__':
     
