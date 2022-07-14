@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from fileinput import filename
 from os import listdir
 import re
 import time
@@ -118,6 +119,7 @@ def process_file(file_name):
             # set job id of this object
             job.job_id = re.findall(";[0-9]+", array[0])[0].strip(';')
         except:
+            line = file.readline()
             continue
 
         # items to be extracted: submit time, job_id, queue
@@ -328,6 +330,7 @@ def process_most_recent_file(file_name):
                 # set job id of this object
                 job.job_id = re.findall(";[0-9]+", array[0])[0].strip(';')
             except:
+                line = file.readline()
                 print('Job ID Prolem: {0}'.format(array))
 
             # items to be extracted: submit time, job_id, queue
