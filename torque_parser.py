@@ -309,6 +309,10 @@ def process_most_recent_file(file_name):
     while True:
         line = file.readline()
         if not line:
+            new_reporting_files = [f for f in listdir(report_dir)]
+            new_reporting_files.sort()
+            if new_reporting_files[-1] != file_name:
+                return new_reporting_files[-1]
             time.sleep(10)
             continue
         else:
@@ -316,7 +320,7 @@ def process_most_recent_file(file_name):
             line = line.strip('\n')
             # split each line by space character (the first element is date and not needed)
             array = line.split(' ')[1:]
-                # extract the log status from log file (Q, S, D, E)
+            # extract the log status from log file (Q, S, D, E)
             log_status = re.findall(";.;", array[0])[0].strip(';')
 
             # we have nothing to do with D status as it bears no additional useful info
@@ -545,17 +549,23 @@ def run():
     
     # all reporting files except for the last one which is not complete yet
     for file in reporting_files:
-        if file not in processed_report_files:
-            processed_report_files.append(file)
-            process_file(file)
-            # check to see if a new log file has been added
-            time.sleep(3)
-            if (len([f for f in listdir(report_dir)])-1) > len(reporting_files):
-                new_reporting_files = [f for f in listdir(report_dir)]
-                new_reporting_files.sort()
-                reporting_files.append(last_file)
-                last_file = new_reporting_files.pop()
-    process_most_recent_file(last_file)
+        if len(reporting_files) > 0:
+            if file not in processed_report_files:
+                processed_report_files.append(file)
+                process_file(file)
+                # check to see if a new log file has been added
+                time.sleep(3)
+                if (len([f for f in listdir(report_dir)])-1) > len(reporting_files):
+                    new_reporting_files = [f for f in listdir(report_dir)]
+                    new_reporting_files.sort()
+                    reporting_files.append(last_file)
+                    last_file = new_reporting_files.pop()
+    processed_report_files.append(last_file)
+    new_last_file = process_most_recent_file(last_file)
+    while True:
+        new_last_file = process_most_recent_file(new_last_file)
+            
+    
 
 if __name__ == '__main__':
     
