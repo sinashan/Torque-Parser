@@ -331,7 +331,8 @@ def process_most_recent_file(file_name):
                 job.job_id = re.findall(";[0-9]+", array[0])[0].strip(';')
             except:
                 line = file.readline()
-                print('Job ID Prolem: {0}'.format(array))
+                #print('Job ID Prolem: {0}'.format(array))
+                continue
 
             # items to be extracted: submit time, job_id, queue
             if log_status == 'Q':
